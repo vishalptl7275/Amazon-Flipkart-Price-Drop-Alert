@@ -1,4 +1,7 @@
-node_modules
-config.env
-test.js
-configpersonal.js
+node_modules/
+config.js
+.env
+.env.*
+!.env.example
+*.log
+.DS_Store
