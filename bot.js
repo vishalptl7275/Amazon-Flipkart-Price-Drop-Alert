@@ -9,12 +9,27 @@ const WizardScene = require("telegraf/scenes/wizard");
 const Stage = require("telegraf/stage");
 const session = require("telegraf/session");
 
-const { BOT_TOKEN, SENDER_EMAIL, SENDER_PASS, MONGO_URI } = require("./config");
+const BOT_TOKEN = process.env.BOT_TOKEN;
+const SENDER_EMAIL = process.env.SENDER_EMAIL;
+const SENDER_PASS = process.env.SENDER_PASS;
+const MONGO_URI = process.env.MONGO_URI;
+
+const missingConfig = ["BOT_TOKEN", "MONGO_URI"].filter((key) => !process.env[key]);
+if (missingConfig.length) {
+  console.error(`Missing required environment variables: ${missingConfig.join(", ")}`);
+  process.exit(1);
+}
 
 const Product = require("./models/product.js");
 const User = require("./models/user.js");
 
 const bot = new Telegraf(BOT_TOKEN);
+bot.catch((error, ctx) => {
+  console.error("Telegram update failed:", error.message);
+  if (ctx && ctx.chat) {
+    ctx.reply("Something went wrong. Please try again later.").catch(() => {});
+  }
+});
 
 bot.use(session());
 
@@ -90,7 +105,12 @@ const addProductWizard = new WizardScene(
     return ctx.wizard.next();
   },
   async (ctx) => {
-    ctx.wizard.state.dropPrice = parseInt(ctx.message.text);
+    const targetPrice = Number(ctx.message.text);
+    if (!Number.isFinite(targetPrice) || targetPrice <= 0) {
+      await ctx.reply("Please enter a valid target price greater than zero.");
+      return ctx.scene.leave();
+    }
+    ctx.wizard.state.dropPrice = targetPrice;
     await ctx.replyWithMarkdown(
       `*Alert added for ${ctx.wizard.state.dropPrice}rs*`
     );
@@ -461,4 +481,10 @@ async function startTracking() {
 
 /* ------------------------------------------------------------- */
 
-bot.launch();
+bot.launch().then(() => console.log("Telegram bot started")).catch((error) => {
+  console.error("Telegram bot failed to start:", error.message);
+  process.exit(1);
+});
+
+process.once("SIGINT", () => bot.stop("SIGINT"));
+process.once("SIGTERM", () => bot.stop("SIGTERM"));
