@@ -1,81 +1,81 @@
 # Amazon & Flipkart Price Drop Alert Bot
 
-A Telegram bot that tracks product prices on Amazon and Flipkart and sends notifications when a tracked item reaches a target price. Users can also receive email alerts.
-
-> **Project status:** Learning project / prototype. Retail websites can change their page structure and anti-bot protections, so price extraction may stop working without updates.
+A Telegram bot prototype that tracks Amazon and Flipkart product prices and sends a Telegram notification when a target price is reached. Optional email notifications use SMTP.
 
 ## Features
 
 - Register a notification email through Telegram
-- Add product URLs and set a target price
+- Add product URLs and target prices
 - List and remove tracked products
-- Pause or resume price notifications
-- Periodically check tracked products
-- Send Telegram and email notifications
-- Store users and tracked products in MongoDB
+- Pause or resume tracking notifications
+- Check tracked products on a scheduled interval
+- Store users and products in MongoDB
+- Optional email notifications
 
-## Tech stack
+## Stack
 
-- Node.js
-- Telegraf (Telegram Bot API)
-- MongoDB and Mongoose
-- Axios and Cheerio for page retrieval and parsing
-- Cron for scheduled checks
-- Nodemailer for email alerts
+Node.js 20+, Telegraf, MongoDB/Mongoose, Axios, Cheerio, Cron and Nodemailer.
 
-## How it works
+## Run locally with Docker
 
-1. A user starts the bot and provides an email address.
-2. The user submits an Amazon or Flipkart product URL and a target price.
-3. The bot stores the tracking request in MongoDB.
-4. A scheduled job checks tracked product pages.
-5. When the extracted price reaches the target, the bot sends a Telegram message and an email.
+Requirements: Docker Desktop with Docker Compose and a Telegram bot token from BotFather.
 
-## Getting started
+1. Copy the example environment file:
 
-### Prerequisites
+   ```bash
+   cp .env.example .env
+   ```
 
-- Node.js and npm
-- A MongoDB database
-- A Telegram bot token from BotFather
-- An email account configured for SMTP access
+2. Add your Telegram token to `.env`. Email settings are optional.
+3. Start MongoDB and the bot:
 
-### 1. Clone and install
+   ```bash
+   docker compose up --build -d
+   ```
+
+4. Open Telegram, find your bot and send `/start`.
+
+View logs:
 
 ```bash
-git clone https://github.com/vishalptl7275/Amazon-Flipkart-Price-Drop-Alert.git
-cd Amazon-Flipkart-Price-Drop-Alert
-npm install
+docker compose logs -f bot
 ```
 
-### 2. Configure credentials
-
-Create your local configuration file from the example:
+Stop the services:
 
 ```bash
-cp config.example.js config.js
+docker compose down
 ```
 
-Edit `config.js` and provide your own values:
+MongoDB data is stored in the `mongo_data` Docker volume. Do not run multiple bot instances with the same token because each instance uses Telegram polling.
 
-- `SENDER_EMAIL`: email address used to send alerts
-- `SENDER_PASS`: email provider app password / SMTP credential
-- `BOT_TOKEN`: Telegram bot token
-- `MONGO_URI`: MongoDB connection string
+## Run without Docker
 
-**Never commit `config.js`, bot tokens, email passwords, or database credentials.** The local configuration file is ignored by Git.
+Requirements: Node.js 20+ and MongoDB.
 
-### 3. Start the bot
+1. Install dependencies:
 
-```bash
-npm start
-```
+   ```bash
+   npm install
+   ```
 
-For development with automatic restarts:
+2. Set environment variables in your shell:
 
-```bash
-npm run dev
-```
+   ```bash
+   export BOT_TOKEN="your-botfather-token"
+   export MONGO_URI="mongodb://127.0.0.1:27017/price-alerts"
+   export SENDER_EMAIL="your-smtp-email" # optional
+   export SENDER_PASS="your-smtp-app-password" # optional
+   ```
+
+3. Check syntax and start:
+
+   ```bash
+   npm run check
+   npm start
+   ```
+
+Never commit tokens, SMTP passwords or database credentials. Configure them as private environment variables on your hosting provider.
 
 ## Telegram commands
 
@@ -85,42 +85,25 @@ npm run dev
 | `/add` | Track a product |
 | `/list` | View and remove tracked products |
 | `/kick` | Pause or resume notifications |
-| `/help` | Show command help |
+| `/help` | Show available commands |
 
-## Repository layout
+## Deployment notes
 
-```text
-.
-├── bot.js
-├── config.example.js
-├── models/
-│   ├── product.js
-│   └── user.js
-├── package.json
-└── package-lock.json
-```
+This is a continuously running Telegram worker, not a static website. It needs a host that supports background workers and a reachable MongoDB database. The included Dockerfile and Compose file support container-based deployment and local testing. Add `BOT_TOKEN` and a production `MONGO_URI` as secrets in the hosting provider before starting the worker.
+
+Retailer pages and anti-bot rules change frequently. Price extraction may fail if Amazon or Flipkart changes its HTML or blocks automated requests. Check the logs and retailer terms before relying on this prototype for real alerts.
 
 ## Known limitations
 
-- Price extraction relies on page selectors that retailers may change.
-- Automated requests may be rate-limited or blocked by retailer anti-bot systems.
-- The bot should handle unavailable prices and request failures more consistently before production use.
-- The project has legacy dependencies that should be reviewed and upgraded before deployment.
-- Retailer terms and applicable policies should be checked before automated page access.
-
-## Future improvements
-
-- Move configuration to environment variables with a validated configuration layer.
-- Add robust retries, request timeouts, and structured logging.
-- Add tests for parsing, price comparisons, and notification rules.
-- Prevent duplicate alerts for the same price threshold.
-- Replace fragile page scraping with approved retailer APIs where available.
-- Upgrade dependencies and add automated security checks.
+- The project uses legacy Telegraf 3 and Mongoose 5 APIs; upgrade and regression-test before production use.
+- Retailer scraping selectors are fragile and may need updates.
+- Add tests for parsing, duplicate alerts, retry behavior and user flows before production.
+- Use approved retailer APIs where available and comply with each retailer's terms.
 
 ## Credits
 
-Originally developed by Parth Sethi. Updated documentation and repository maintenance by Vishal Patel.
+Originally developed by Parth Sethi. Repository maintenance by Vishal Patel.
 
 ## License
 
-This project is distributed under the MIT License. See [LICENSE](LICENSE) if present in the repository.
+MIT
