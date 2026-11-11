@@ -135,7 +135,7 @@ const deleteWizard = new WizardScene(
     if (ctx.message.text.toLowerCase() === "q") {
       return ctx.scene.leave();
     } else {
-      uniqid = ctx.message.text;
+      const uniqid = ctx.message.text;
       Product.findOne({ uniqid }).exec((err, product) => {
         if (err || !product) {
           ctx.replyWithMarkdown("*Something went wrong!*");
@@ -244,23 +244,19 @@ const handleBtncmd = async (ctx) => {
 };
 
 const handleKickcmd = async (ctx) => {
-  User.findOne({ userid: ctx.chat.id }).then(({ _id, pause }) => {
-    pause = !pause;
-    User.findByIdAndUpdate(
-      _id,
-      { $set: { pause } },
-      { new: true },
-      (err, res) => {
-        if (err) {
-          console.log(err);
-        } else {
-          ctx.replyWithMarkdown(
-            `*Tracking ${res.pause ? "Paused" : "Resumed"}*`
-          );
-        }
-      }
-    );
-  });
+  try {
+    const user = await User.findOne({ userid: ctx.chat.id });
+    if (!user) {
+      await ctx.reply("Send /start first to register before changing notification settings.");
+      return;
+    }
+    user.pause = !user.pause;
+    await user.save();
+    await ctx.replyWithMarkdown(`*Tracking ${user.pause ? "Paused" : "Resumed"}*`);
+  } catch (error) {
+    console.error("Unable to change tracking state:", error.message);
+    await ctx.reply("Unable to update tracking right now. Please try again.");
+  }
 };
 
 const handleDeletecmd = async (ctx) => {
@@ -378,31 +374,49 @@ function isValidURL(value) {
 }
 
 const trackPrices = async () => {
-  Product.find().then((products) => {
-    products.forEach(
-      async ({ name, anydrop, url, userid, initPrice, dropPrice, email }) => {
-        name = name.slice(0, 15);
-        const nowPrice = await curPrice(url);
-        if (nowPrice <= dropPrice) {
-          sendNotification(name, nowPrice, url, email, userid);
+  try {
+    const products = await Product.find({ notified: false });
+    for (const product of products) {
+      try {
+        const currentPrice = await curPrice(product.url);
+        if (Number.isFinite(currentPrice) && currentPrice > 0 && currentPrice <= product.dropPrice) {
+          const claimed = await Product.findOneAndUpdate(
+            { _id: product._id, notified: false },
+            { $set: { notified: true } },
+            { new: true }
+          );
+          if (claimed) {
+            await sendNotification(
+              product.name.slice(0, 40),
+              currentPrice,
+              product.url,
+              product.email,
+              product.userid
+            );
+          }
         }
+      } catch (error) {
+        console.error("Price check failed for a tracked item:", error.message);
       }
-    );
-  });
+    }
+  } catch (error) {
+    console.error("Unable to load tracked products:", error.message);
+  }
 };
 
 async function sendNotification(name, nowPrice, url, email, userid) {
-  User.find({ userid }).then((user) => {
-    if (!user[0].pause) {
-      console.log("sending message");
-      bot.telegram.sendMessage(
-        userid,
-        `Price of ${name} *dropped to ${nowPrice}Rs*, [Click here](${url}) to buy now`,
-        { parse_mode: "MarkdownV2" }
-      );
-      sendEmail(name, nowPrice, url, email);
-    }
-  });
+  try {
+    const user = await User.findOne({ userid });
+    if (!user || user.pause) return;
+
+    await bot.telegram.sendMessage(
+      userid,
+      `Price of ${name} dropped to ₹${nowPrice}. Buy: ${url}`
+    );
+    await sendEmail(name, nowPrice, url, email);
+  } catch (error) {
+    console.error("Notification failed:", error.message);
+  }
 }
 
 async function sendEmail(name, nowPrice, url, email) {
