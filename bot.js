@@ -99,12 +99,20 @@ const addProductWizard = new WizardScene(
     }
     ctx.wizard.state.url = ctx.message.text;
 
-    ctx.wizard.state.name = await getProductName(ctx.wizard.state.url);
-    await ctx.replyWithMarkdown(`*Product is* ${ctx.wizard.state.name}`);
-    ctx.wizard.state.initPrice = await curPrice(ctx.wizard.state.url);
-    await ctx.replyWithMarkdown(
-      `Current price is *${ctx.wizard.state.initPrice}rs*`
-    );
+    try {
+      ctx.wizard.state.name = await getProductName(ctx.wizard.state.url);
+      ctx.wizard.state.initPrice = await curPrice(ctx.wizard.state.url);
+      if (!ctx.wizard.state.name || !Number.isFinite(ctx.wizard.state.initPrice) || ctx.wizard.state.initPrice <= 0) {
+        await ctx.reply("I couldn't read the product name or current price. The store may have blocked the request or changed its page. Please try another product URL later.");
+        return ctx.scene.leave();
+      }
+      await ctx.replyWithMarkdown(`*Product is* ${ctx.wizard.state.name}`);
+      await ctx.replyWithMarkdown(`Current price is *${ctx.wizard.state.initPrice}rs*`);
+    } catch (error) {
+      console.error("Product lookup failed:", error.message);
+      await ctx.reply("Unable to read this product right now. Please try again later.");
+      return ctx.scene.leave();
+    }
     await ctx.replyWithMarkdown(
       "*Enter the price you want to be notified for*"
     );
@@ -120,8 +128,13 @@ const addProductWizard = new WizardScene(
     await ctx.replyWithMarkdown(
       `*Alert added for ${ctx.wizard.state.dropPrice}rs*`
     );
-    await addProduct(ctx.scene.state);
-    await handleBtncmd(ctx);
+    try {
+      await addProduct(ctx.scene.state);
+      await ctx.reply("Price alert saved.");
+      await handleBtncmd(ctx);
+    } catch (error) {
+      await ctx.reply("I couldn't save this alert. Please send /start and try again.");
+    }
 
     return ctx.scene.leave();
   }
