@@ -380,7 +380,8 @@ function isValidURL(value) {
 
 const trackPrices = async () => {
   try {
-    const pendingFilter = { $or: [{ notified: false }, { notified: { $exists: false } }] };\n    const products = await Product.find(pendingFilter);
+    const pendingFilter = { $or: [{ notified: false }, { notified: { $exists: false } }] };
+    const products = await Product.find(pendingFilter);
     for (const product of products) {
       try {
         const currentPrice = await curPrice(product.url);
