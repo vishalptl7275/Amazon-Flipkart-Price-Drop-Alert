@@ -67,7 +67,7 @@ const newUserWizard = new WizardScene(
   },
   async (ctx) => {
     const email = ctx.message && typeof ctx.message.text === "string" ? ctx.message.text.trim() : "";
-    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
       await ctx.reply("Please enter a valid email address.");
       return;
     }
