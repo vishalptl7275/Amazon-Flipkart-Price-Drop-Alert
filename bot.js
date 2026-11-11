@@ -375,13 +375,13 @@ function isValidURL(value) {
 
 const trackPrices = async () => {
   try {
-    const products = await Product.find({ notified: false });
+    const pendingFilter = { $or: [{ notified: false }, { notified: { $exists: false } }] };\n    const products = await Product.find(pendingFilter);
     for (const product of products) {
       try {
         const currentPrice = await curPrice(product.url);
         if (Number.isFinite(currentPrice) && currentPrice > 0 && currentPrice <= product.dropPrice) {
           const claimed = await Product.findOneAndUpdate(
-            { _id: product._id, notified: false },
+            { _id: product._id, $or: [{ notified: false }, { notified: { $exists: false } }] },
             { $set: { notified: true } },
             { new: true }
           );
