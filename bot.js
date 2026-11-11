@@ -406,6 +406,10 @@ async function sendNotification(name, nowPrice, url, email, userid) {
 }
 
 async function sendEmail(name, nowPrice, url, email) {
+  if (!SENDER_EMAIL || !SENDER_PASS || !email) {
+    console.log("Email alerts skipped: SMTP credentials or recipient email are not configured.");
+    return;
+  }
   try {
     let transporter = nodemailer.createTransport({
       service: "gmail",
