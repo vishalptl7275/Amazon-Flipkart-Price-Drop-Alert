@@ -34,17 +34,18 @@ bot.catch((error, ctx) => {
 bot.use(session());
 
 mongoose.connect(MONGO_URI, {
-  useCreateIndex: true,
   useNewUrlParser: true,
   useUnifiedTopology: true,
-  useFindAndModify: false,
+}).catch((error) => {
+  console.error("MongoDB connection failed:", error.message);
+  process.exit(1);
 });
 
 mongoose.connection.on("connected", () => {
   console.log("db connected");
   startTracking();
 });
-mongoose.connection.on("error", () => console.error("error connecting to db"));
+mongoose.connection.on("error", (error) => console.error("MongoDB connection error:", error.message));
 
 let amazonClasses = [
   "#priceblock_saleprice",
@@ -364,11 +365,16 @@ async function curPrice(url) {
   return price;
 }
 
-function isValidURL(string) {
-  var res = string.match(
-    /(http(s)?:\/\/.)?(www\.)?[-a-zA-Z0-9@:%._\+~#=]{2,256}\.[a-z]{2,6}\b([-a-zA-Z0-9@:%_\+.~#?&//=]*)/g
-  );
-  return res !== null;
+function isValidURL(value) {
+  try {
+    const parsed = new URL(value);
+    const host = parsed.hostname.toLowerCase();
+    const allowed = ["amazon.in", "amazon.com", "flipkart.com"];
+    return parsed.protocol === "https:" &&
+      allowed.some((domain) => host === domain || host.endsWith("." + domain));
+  } catch {
+    return false;
+  }
 }
 
 const trackPrices = async () => {
