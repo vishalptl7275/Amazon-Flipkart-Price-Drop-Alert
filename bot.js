@@ -66,8 +66,13 @@ const newUserWizard = new WizardScene(
     return ctx.wizard.next();
   },
   async (ctx) => {
-    ctx.wizard.state.email = ctx.message.text;
-    bot.telegram.sendMessage(ctx.chat.id, "CLICK ON BELOW BUTTON(s) TO:", {
+    const email = ctx.message && typeof ctx.message.text === "string" ? ctx.message.text.trim() : "";
+    if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(email)) {
+      await ctx.reply("Please enter a valid email address.");
+      return;
+    }
+    ctx.wizard.state.email = email;
+    await bot.telegram.sendMessage(ctx.chat.id, "CLICK ON BELOW BUTTON(s) TO:", {
       reply_markup: {
         inline_keyboard: [
           [{ text: "Add a Product", callback_data: "addProductBtn" }],
@@ -75,7 +80,7 @@ const newUserWizard = new WizardScene(
         ],
       },
     });
-    addUser(ctx.wizard.state);
+    await addUser(ctx.wizard.state);
     return ctx.scene.leave();
   }
 );
@@ -115,8 +120,8 @@ const addProductWizard = new WizardScene(
     await ctx.replyWithMarkdown(
       `*Alert added for ${ctx.wizard.state.dropPrice}rs*`
     );
-    addProduct(ctx.scene.state);
-    handleBtncmd(ctx);
+    await addProduct(ctx.scene.state);
+    await handleBtncmd(ctx);
 
     return ctx.scene.leave();
   }
@@ -446,46 +451,48 @@ async function sendEmail(name, nowPrice, url, email) {
   }
 }
 
-const addUser = ({ email, userid }) => {
-  const user = new User({
-    email,
-    userid,
-  });
-  user
-    .save()
-    .then((savedUser) => {
-      console.log("added new user");
-      bot.telegram.sendMessage(
-        601430671,
-        `new user signedup ~ ${savedUser.email} ~ ${savedUser.userid}`
-      );
-    })
-    .catch((err) => console.log(err));
-};
-const addProduct = ({ url, userid, name, initPrice, dropPrice }) => {
-  let uniqid = "";
-  const possible = "123456789";
-  for (let i = 0; i < 4; i++) {
-    let sup = Math.floor(Math.random() * possible.length);
-    uniqid += i > 0 && sup == i ? "0" : possible.charAt(sup);
+const addUser = async ({ email, userid }) => {
+  try {
+    const user = await User.findOneAndUpdate(
+      { userid },
+      { $set: { email }, $setOnInsert: { pause: false } },
+      { upsert: true, new: true, setDefaultsOnInsert: true }
+    );
+    console.log("User registered or updated:", user.userid);
+  } catch (error) {
+    console.error("Unable to save Telegram user:", error.message);
+    throw error;
   }
-  User.findOne({ userid }).then(({ email }) => {
+};
+
+const addProduct = async ({ url, userid, name, initPrice, dropPrice }) => {
+  try {
+    const user = await User.findOne({ userid });
+    if (!user) {
+      throw new Error("User is not registered. Send /start first.");
+    }
+    let uniqid = "";
+    const possible = "123456789";
+    for (let i = 0; i < 4; i++) {
+      const digit = Math.floor(Math.random() * possible.length);
+      uniqid += possible.charAt(digit);
+    }
     const product = new Product({
       url,
       userid,
       name,
       initPrice,
       dropPrice,
-      email,
+      email: user.email,
       uniqid,
+      notified: false,
     });
-    product
-      .save()
-      .then((addedProduct) => {
-        console.log("added new product");
-      })
-      .catch((err) => console.log(err));
-  });
+    await product.save();
+    console.log("Added tracked product:", product._id);
+  } catch (error) {
+    console.error("Unable to add tracked product:", error.message);
+    throw error;
+  }
 };
 
 async function startTracking() {
